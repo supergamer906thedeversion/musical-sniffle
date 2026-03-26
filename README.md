@@ -48,7 +48,9 @@ media-horde-amp/
 
 Put `playlist.txt` in the **same folder** as `index.html`.
 
-That means the root should look like this:
+This project supports two install layouts:
+
+### Mode A: library-root install (recommended)
 
 ```text
 your-library/
@@ -61,14 +63,39 @@ your-library/
 └─ assets/
 ```
 
-Your media folders can be whatever you want. Just keep the paths in `playlist.txt` relative to that root.
+Build command:
+
+```bash
+python tools/build_playlist.py --scan-root . --output playlist.txt
+```
+
+### Mode B: repo next to media folders
+
+```text
+parent/
+├─ Media-Horde-AMP/
+│  ├─ index.html
+│  ├─ playlist.txt
+│  └─ tools/
+├─ music/
+├─ videos/
+└─ games/
+```
+
+Build command (run from `Media-Horde-AMP/`):
+
+```bash
+python tools/build_playlist.py --scan-root .. --output playlist.txt --paths-relative-to .
+```
+
+Your media folders can use any names. If you need to skip folders, use `.mediahordeignore` or `--exclude`.
 
 ## Quick start
 
 ### Option 1: use it locally
-1. Put this repo in your media root or next to your media folders.
+1. Choose one install layout above (Mode A or Mode B).
 2. Run one of the playlist builders:
-   - `python tools/build_playlist.py`
+   - `python tools/build_playlist.py --scan-root . --output playlist.txt`
    - `tools\build_playlist.bat`
    - `powershell -ExecutionPolicy Bypass -File tools\build_playlist.ps1`
 3. Open `index.html`
@@ -87,12 +114,14 @@ Then open:
 http://localhost:8000/
 ```
 
-### Option 3: host it on GitHub Pages
+### Option 3: host it on GitHub Pages (demo/small libraries)
 1. Create a repo
 2. Upload this structure
-3. Commit your media and `playlist.txt`
+3. Commit a small media set and `playlist.txt`
 4. Enable GitHub Pages
 5. Keep `playlist.txt` next to `index.html`
+
+For giant private libraries, local hosting is usually the better path.
 
 ## Playlist format
 
@@ -126,7 +155,7 @@ You usually do **not** need to set `type`. The app infers it from the file exten
 ## Included tools
 
 ### `tools/build_playlist.py`
-Scans the current folder recursively and writes `playlist.txt`.
+Scans media files and writes `playlist.txt`.
 
 ```bash
 python tools/build_playlist.py
@@ -135,12 +164,21 @@ python tools/build_playlist.py
 Useful options:
 
 ```bash
-python tools/build_playlist.py --root . --output playlist.txt
+python tools/build_playlist.py --scan-root . --output playlist.txt
+python tools/build_playlist.py --scan-root .. --output playlist.txt --paths-relative-to .
 python tools/build_playlist.py --exclude covers --exclude temp
 python tools/build_playlist.py --no-size
 ```
 
 By default the builder writes human-readable `size=` metadata so the launcher can show visible library size without doing extra browser nonsense.
+
+Optional ignore file:
+
+```text
+.mediahordeignore
+```
+
+Add one folder name per line (example: `.git`, `node_modules`, `temp`) to skip those folder names anywhere under `--scan-root`.
 
 ### `tools/build_playlist.bat`
 Windows double-click wrapper for the Python script.
