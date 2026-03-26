@@ -2,7 +2,7 @@ window.MediaHorde = window.MediaHorde || {};
 
 window.MediaHorde.config = {
   playlistFilename: "playlist.txt",
-  localStorageKey: "media-horde-amp-state-v3",
+  localStorageKey: "media-horde-amp-state-v4",
   audioExtensions: [".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac", ".opus"],
   videoExtensions: [".mp4", ".webm", ".mov", ".mkv", ".m4v"],
   htmlExtensions: [".html", ".htm"],

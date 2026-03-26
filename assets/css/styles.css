@@ -623,6 +623,9 @@ td{
 .grid-container{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;padding:10px;overflow:auto}
 .grid-card{border:1px solid #334155;background:#0f172a;color:#e2e8f0;border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px;text-align:left}
 .queue-list{margin:0;padding-left:18px;max-height:180px;overflow:auto}
+.queue-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0}
+.queue-controls{display:inline-flex;gap:4px}
+.queue-controls button{border:1px solid #475569;background:#0f172a;color:#cbd5e1;border-radius:6px;padding:1px 6px}
 .diag-modal{width:min(900px,90vw);background:#0b1222;color:#e2e8f0;border:1px solid #334155;border-radius:10px}
 .diag-modal ul{max-height:50vh;overflow:auto}
 #renderNotice{color:#94a3b8}

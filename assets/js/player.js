@@ -100,14 +100,27 @@ window.MediaHorde = window.MediaHorde || {};
       elements.emptyOverlay.classList.add("hidden");
       updateFallbackArt(item);
 
-      if (item.artPath) {
-        elements.artEl.src = item.artPath;
+      const artCandidates = (item.artCandidates && item.artCandidates.length ? item.artCandidates : (item.artPath ? [item.artPath] : []))
+        .filter(Boolean);
+      if (artCandidates.length) {
         elements.artEl.classList.remove("hidden");
         elements.artFallback.classList.add("hidden");
+        let artIndex = 0;
+        const loadArtAt = index => {
+          artIndex = index;
+          elements.artEl.src = artCandidates[index];
+        };
         elements.artEl.onerror = () => {
+          const next = artIndex + 1;
+          if (next < artCandidates.length) return loadArtAt(next);
           elements.artEl.classList.add("hidden");
           elements.artFallback.classList.remove("hidden");
         };
+        elements.artEl.onload = () => {
+          elements.artEl.classList.remove("hidden");
+          elements.artFallback.classList.add("hidden");
+        };
+        loadArtAt(0);
       } else {
         elements.artEl.classList.add("hidden");
         elements.artFallback.classList.remove("hidden");

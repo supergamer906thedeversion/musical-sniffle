@@ -112,7 +112,7 @@ window.MediaHorde = window.MediaHorde || {};
       if (state.filter !== "all") {
         if (state.filter === "favorites") items = items.filter(item => state.favorites[item.path]);
         else if (state.filter === "recent") items = items.filter(item => state.recentMap[item.path]);
-        else if (state.filter === "recently-added") items = items.slice().sort((a, b) => b.addedAt - a.addedAt).slice(0, 250);
+        else if (state.filter === "recently-added") items = items.filter(item => Number.isFinite(item.addedAt) && item.addedAt > 0).sort((a, b) => b.addedAt - a.addedAt).slice(0, 250);
         else items = items.filter(item => item.type === state.filter);
       }
 
@@ -250,7 +250,17 @@ window.MediaHorde = window.MediaHorde || {};
       const fragment = document.createDocumentFragment();
       state.queue.forEach((entry, i) => {
         const li = document.createElement("li");
-        li.textContent = `${i + 1}. ${entry.title || entry.name}`;
+        li.className = "queue-row";
+        li.draggable = true;
+        li.dataset.index = String(i);
+        const label = document.createElement("span");
+        label.textContent = `${i + 1}. ${entry.title || entry.name || entry.path || "(missing)"}`;
+        const controls = document.createElement("span");
+        controls.className = "queue-controls";
+        controls.innerHTML = `<button class="queue-move-up" data-index="${i}" type="button" aria-label="Move up">↑</button>
+          <button class="queue-move-down" data-index="${i}" type="button" aria-label="Move down">↓</button>
+          <button class="queue-remove" data-index="${i}" type="button" aria-label="Remove from queue">✕</button>`;
+        li.append(label, controls);
         fragment.appendChild(li);
       });
       elements.queueList.replaceChildren(fragment);
@@ -323,7 +333,34 @@ window.MediaHorde = window.MediaHorde || {};
       return filteredItems[index];
     }
 
-    return { setStatus, setTrackInfo, getFilteredItems, refresh, moveSelection };
+    function bindQueueControls(actions){
+      elements.queueList.addEventListener("click", event => {
+        const index = Number(event.target?.dataset?.index);
+        if (!Number.isInteger(index)) return;
+        if (event.target.closest(".queue-remove")) return actions.removeQueueItem(index);
+        if (event.target.closest(".queue-move-up")) return actions.moveQueueItem(index, -1);
+        if (event.target.closest(".queue-move-down")) return actions.moveQueueItem(index, 1);
+      });
+
+      let dragIndex = -1;
+      elements.queueList.addEventListener("dragstart", event => {
+        const li = event.target.closest(".queue-row");
+        if (!li) return;
+        dragIndex = Number(li.dataset.index);
+      });
+      elements.queueList.addEventListener("dragover", event => event.preventDefault());
+      elements.queueList.addEventListener("drop", event => {
+        event.preventDefault();
+        const li = event.target.closest(".queue-row");
+        if (!li || dragIndex < 0) return;
+        const dropIndex = Number(li.dataset.index);
+        actions.reorderQueue(dragIndex, dropIndex);
+        dragIndex = -1;
+      });
+      elements.queueList.addEventListener("dragend", () => { dragIndex = -1; });
+    }
+
+    return { setStatus, setTrackInfo, getFilteredItems, refresh, moveSelection, bindQueueControls };
   }
 
   ns.ui = { createUi };

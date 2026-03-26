@@ -25,13 +25,27 @@ window.MediaHorde = window.MediaHorde || {};
     return { metadata, unknownChunks };
   }
 
-  function inferArtPath(rawPath, metadata){
-    if (metadata.art || metadata.cover) return metadata.art || metadata.cover;
+  function inferArtCandidates(rawPath, metadata){
+    if (metadata.art || metadata.cover) return [metadata.art || metadata.cover].filter(Boolean);
     const baseWithoutExt = utils.stripExtension(rawPath);
+    const folder = utils.dirname(rawPath);
+    const folderName = folder.split("/").pop() || "cover";
+    const candidates = [];
     for (const ext of config.artExtensions || []) {
-      return `${baseWithoutExt}${ext}`;
+      candidates.push(`${baseWithoutExt}${ext}`);
+      candidates.push(`${folder}/cover${ext}`);
+      candidates.push(`${folder}/folder${ext}`);
+      candidates.push(`${folder}/${folderName}${ext}`);
     }
-    return "";
+    return Array.from(new Set(candidates));
+  }
+
+  function parseDateValue(rawValue){
+    if (!rawValue) return 0;
+    const numeric = Number(rawValue);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric > 1e12 ? numeric : numeric * 1000;
+    const parsed = Date.parse(String(rawValue));
+    return Number.isFinite(parsed) ? parsed : 0;
   }
 
   function parsePlaylistText(text){
@@ -78,7 +92,9 @@ window.MediaHorde = window.MediaHorde || {};
       const title = metadata.title || utils.stripExtension(utils.basename(rawPath));
       const sizeText = metadata.size || "";
       const sizeBytes = utils.parseHumanSize(sizeText);
-      const artPath = inferArtPath(rawPath, metadata);
+      const artCandidates = inferArtCandidates(rawPath, metadata);
+      const artPath = artCandidates[0] || "";
+      const addedAt = parseDateValue(metadata.added || metadata.added_at || metadata.built || metadata.built_at);
 
       if (!ext) diagnostics.warnings.push(`Line ${lineNumber}: file extension missing for ${rawPath}.`);
       if (!["audio", "video", "html", "image", "other"].includes(type)) {
@@ -105,8 +121,9 @@ window.MediaHorde = window.MediaHorde || {};
         sizeText,
         sizeBytes,
         artPath: artPath ? utils.encodeUrlPath(artPath) : "",
+        artCandidates: artCandidates.map(utils.encodeUrlPath),
         playlistIndex: items.length + 1,
-        addedAt: lineNumber
+        addedAt
       });
     });
 

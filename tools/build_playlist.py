@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -70,7 +71,11 @@ def human_size(num_bytes: int) -> str:
 
 def build_entry(file_path: Path, playlist_dir: Path, include_size: bool) -> str:
     relative = Path(os.path.relpath(file_path, playlist_dir)).as_posix()
-    return f"{relative} | size={human_size(file_path.stat().st_size)}" if include_size else relative
+    stat = file_path.stat()
+    added_iso = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    if include_size:
+        return f"{relative} | size={human_size(stat.st_size)} | added={added_iso}"
+    return f"{relative} | added={added_iso}"
 
 
 def build_report(media_files: list[Path], root: Path, excludes: set[str], extensions: set[str]) -> dict:

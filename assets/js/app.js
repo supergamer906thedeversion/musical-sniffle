@@ -46,6 +46,7 @@ window.MediaHorde = window.MediaHorde || {};
     bulkFavoriteBtn: document.getElementById("bulkFavoriteBtn"),
     queueList: document.getElementById("queueList"),
     queueCount: document.getElementById("queueCount"),
+    clearQueueBtn: document.getElementById("clearQueueBtn"),
     multiCount: document.getElementById("multiCount"),
     diagnosticsBtn: document.getElementById("diagnosticsBtn"),
     diagnosticsModal: document.getElementById("diagnosticsModal"),
@@ -90,6 +91,8 @@ window.MediaHorde = window.MediaHorde || {};
     favorites: persisted.favorites || {},
     recentMap: persisted.recentMap || {},
     pinnedFolders: persisted.pinnedFolders || {},
+    multiSelected: persisted.multiSelected || {},
+    queue: Array.isArray(persisted.queue) ? persisted.queue : [],
     volume: typeof persisted.volume === "number" ? persisted.volume : config.defaultVolume,
     filter: persisted.uiPrefs?.filter || "all",
     folderFilter: persisted.uiPrefs?.folderFilter || "all",
@@ -102,7 +105,7 @@ window.MediaHorde = window.MediaHorde || {};
   elements.searchInput.value = state.searchQuery;
   elements.sortSelect.value = state.sort;
 
-  const appUi = ui.createUi(elements, state, { refresh, toggleFavorite, openSelected, togglePinnedFolder, queueItem, toggleSelect });
+  const appUi = ui.createUi(elements, state, { refresh, toggleFavorite, openSelected, togglePinnedFolder, queueItem, toggleSelect, removeQueueItem, clearQueue, moveQueueItem, reorderQueue });
 
   state.player = player.createPlayer(elements, {
     onPlaybackStateChange(isPlaying){ elements.playPauseBtn.textContent = isPlaying ? "⏸" : "▶"; },
@@ -120,7 +123,7 @@ window.MediaHorde = window.MediaHorde || {};
         return openSelected();
       }
       if (state.repeatMode === "all") return playRelative(1);
-      return playRelative(1);
+      return;
     }
   });
   state.player.setVolume(state.volume);
@@ -138,6 +141,8 @@ window.MediaHorde = window.MediaHorde || {};
       favorites: state.favorites,
       recentMap: state.recentMap,
       pinnedFolders: state.pinnedFolders,
+      multiSelected: state.multiSelected,
+      queue: state.queue.map(item => typeof item === "string" ? item : item.path).filter(Boolean),
       volume: state.volume,
       uiPrefs: {
         filter: state.filter,
@@ -155,6 +160,21 @@ window.MediaHorde = window.MediaHorde || {};
   function toggleFavorite(path){ state.favorites[path] = !state.favorites[path]; if (!state.favorites[path]) delete state.favorites[path]; refresh(false); }
   function toggleSelect(path){ state.multiSelected[path] ? delete state.multiSelected[path] : state.multiSelected[path] = true; refresh(false); }
   function queueItem(path){ const item = state.items.find(x => x.path === path); if (item) state.queue.push(item); refresh(false); }
+  function removeQueueItem(index){ if (index < 0 || index >= state.queue.length) return; state.queue.splice(index, 1); refresh(false); }
+  function clearQueue(){ state.queue = []; refresh(false); }
+  function moveQueueItem(index, direction){
+    const nextIndex = index + direction;
+    if (index < 0 || index >= state.queue.length || nextIndex < 0 || nextIndex >= state.queue.length) return;
+    const [item] = state.queue.splice(index, 1);
+    state.queue.splice(nextIndex, 0, item);
+    refresh(false);
+  }
+  function reorderQueue(from, to){
+    if (from === to || from < 0 || to < 0 || from >= state.queue.length || to >= state.queue.length) return;
+    const [item] = state.queue.splice(from, 1);
+    state.queue.splice(to, 0, item);
+    refresh(false);
+  }
   function togglePinnedFolder(folder){ state.pinnedFolders[folder] ? delete state.pinnedFolders[folder] : state.pinnedFolders[folder] = true; refresh(true); }
 
   function markRecentlyOpened(item){ if (item?.path) state.recentMap[item.path] = Date.now(); }
@@ -200,6 +220,13 @@ window.MediaHorde = window.MediaHorde || {};
   function afterPlaylistLoaded(result){
     state.items = result.items;
     state.playlistDiagnostics = result.diagnostics || { errors: [], warnings: [], duplicateEntries: [] };
+    state.queue = state.queue
+      .map(entry => typeof entry === "string" ? entry : entry?.path)
+      .map(path => state.items.find(item => item.path === path) || null)
+      .filter(Boolean);
+    state.multiSelected = Object.fromEntries(
+      Object.entries(state.multiSelected).filter(([path, isSelected]) => isSelected && state.items.some(item => item.path === path))
+    );
     state.folderFilter = "all";
     if (!state.items.length) return appUi.setStatus(`Loaded ${result.source}, but it was empty.`, "Add relative paths to playlist.txt.");
     if (!state.selectedPath || !state.items.some(item => item.path === state.selectedPath)) state.selectedPath = state.items[0].path;
@@ -240,6 +267,7 @@ window.MediaHorde = window.MediaHorde || {};
     elements.clearFavoritesBtn.addEventListener("click", () => { state.favorites = {}; refresh(false); });
     elements.repeatModeBtn.addEventListener("click", () => { state.repeatMode = state.repeatMode === "off" ? "one" : (state.repeatMode === "one" ? "all" : "off"); refresh(false); });
     elements.clearSelectionBtn.addEventListener("click", () => { state.multiSelected = {}; refresh(false); });
+    elements.clearQueueBtn.addEventListener("click", () => clearQueue());
     elements.bulkQueueBtn.addEventListener("click", () => { Object.keys(state.multiSelected).forEach(path => queueItem(path)); });
     elements.bulkFavoriteBtn.addEventListener("click", () => { Object.keys(state.multiSelected).forEach(path => state.favorites[path] = true); refresh(false); });
     elements.diagnosticsBtn.addEventListener("click", () => elements.diagnosticsModal.showModal());
@@ -268,6 +296,7 @@ window.MediaHorde = window.MediaHorde || {};
     });
   }
 
+  appUi.bindQueueControls({ removeQueueItem, moveQueueItem, reorderQueue });
   bindEvents();
   refresh(true);
   tryLoadDefaultPlaylist();

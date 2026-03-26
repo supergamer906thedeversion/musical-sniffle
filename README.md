@@ -9,7 +9,7 @@ Offline-first media launcher for static hosting. Load a `playlist.txt` and brows
 
 Media Horde AMP is built for **offline-first**, **static hosting**, and **big local collections**:
 - Works from a plain folder, local server, or GitHub Pages.
-- Keeps UI state in local storage (favorites, recents, pinned folders, volume, view mode).
+- Keeps UI state in local storage (favorites, recents, pinned folders, queue, selections, volume, view mode).
 - Avoids server dependencies and supports manual `playlist.txt` loading.
 
 ## Current features
@@ -19,7 +19,7 @@ Media Horde AMP is built for **offline-first**, **static hosting**, and **big lo
 - Table/List/Grid view switching
 - Favorites + recents + recently-added filter
 - Pinned folders (right-click in sidebar)
-- Up Next queue + repeat modes (`off`, `one`, `all`)
+- Up Next queue + repeat modes (`off`, `one`, `all`) with queue remove/clear/reorder controls
 - Multi-select with bulk queue/favorite actions
 - Drag-and-drop playlist loading
 - Playlist diagnostics modal for malformed lines and duplicates
@@ -40,7 +40,7 @@ games/game/index.html | title=My Game | type=html
 music/song.mp3 | art=covers/song.jpg
 ```
 
-Supported metadata keys: `title`, `type`, `folder`, `size`, `art`, `cover`, `ext`.
+Supported metadata keys: `title`, `type`, `folder`, `size`, `art`, `cover`, `ext`, `added`.
 
 ## Builder tool (`tools/build_playlist.py`)
 
@@ -88,7 +88,6 @@ python tools/build_playlist.py --no-size
 ## Known limitations
 
 - Large libraries are capped to first visible rows for rendering; full virtualization is not implemented yet.
-- Repeat `off` currently still advances when the player fires `ended` (tracked for follow-up).
 - Album art fallback is heuristic-based and may not always find the best match.
 - Browser security policies may block autoplay or local `file://` fetches depending on browser settings.
 
