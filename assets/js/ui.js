@@ -1,7 +1,14 @@
 window.MediaHorde = window.MediaHorde || {};
 
 (function(ns){
-  const { utils } = ns;
+  const { utils, config } = ns;
+
+  function textCell(text, className){
+    const td = document.createElement("td");
+    if (className) td.className = className;
+    td.textContent = text || "";
+    return td;
+  }
 
   function createUi(elements, state, actions){
     function setStatus(left, right){
@@ -29,72 +36,91 @@ window.MediaHorde = window.MediaHorde || {};
       }
     }
 
+    function folderButton(labelTop, labelBottomLeft, labelBottomRight, active, onClick, pinTarget){
+      const button = document.createElement("button");
+      button.className = `folder-btn ${active ? "active" : ""}`;
+      button.type = "button";
+
+      const title = document.createElement("div");
+      title.textContent = labelTop;
+      const small = document.createElement("small");
+      const left = document.createElement("span");
+      left.textContent = labelBottomLeft;
+      const right = document.createElement("span");
+      right.textContent = String(labelBottomRight);
+      small.append(left, right);
+      button.append(title, small);
+
+      const pin = document.createElement("span");
+      pin.className = "pin-indicator";
+      pin.textContent = pinTarget && state.pinnedFolders[pinTarget] ? "📌" : "";
+      button.appendChild(pin);
+
+      button.addEventListener("click", onClick);
+      button.addEventListener("contextmenu", event => {
+        event.preventDefault();
+        if (!pinTarget) return;
+        actions.togglePinnedFolder(pinTarget);
+      });
+
+      return button;
+    }
+
     function renderFolders(){
       const counts = new Map();
-      state.items.forEach(item => {
-        counts.set(item.folder, (counts.get(item.folder) || 0) + 1);
-      });
+      state.items.forEach(item => counts.set(item.folder, (counts.get(item.folder) || 0) + 1));
 
       const fragment = document.createDocumentFragment();
-      const allBtn = document.createElement("button");
-      allBtn.className = `folder-btn ${state.folderFilter === "all" ? "active" : ""}`;
-      allBtn.type = "button";
-      allBtn.innerHTML = `<div>All folders</div><small><span>Entire library</span><span>${state.items.length}</span></small>`;
-      allBtn.addEventListener("click", () => {
-        state.folderFilter = "all";
-        actions.refresh();
-      });
-      fragment.appendChild(allBtn);
+      fragment.appendChild(folderButton(
+        "All folders",
+        "Entire library",
+        state.items.length,
+        state.folderFilter === "all",
+        () => {
+          state.folderFilter = "all";
+          actions.refresh();
+        },
+        null
+      ));
 
-      Array.from(counts.entries())
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .forEach(([folder, count]) => {
-          const button = document.createElement("button");
-          button.className = `folder-btn ${state.folderFilter === folder ? "active" : ""}`;
-          button.type = "button";
-          button.innerHTML = `<div>${folder}</div><small><span>Folder</span><span>${count}</span></small>`;
-          button.addEventListener("click", () => {
+      const entries = Array.from(counts.entries()).sort((a, b) => {
+        const pinA = state.pinnedFolders[a[0]] ? 1 : 0;
+        const pinB = state.pinnedFolders[b[0]] ? 1 : 0;
+        if (pinA !== pinB) return pinB - pinA;
+        return a[0].localeCompare(b[0]);
+      });
+      entries.forEach(([folder, count]) => {
+        fragment.appendChild(folderButton(
+          folder,
+          "Folder",
+          count,
+          state.folderFilter === folder,
+          () => {
             state.folderFilter = folder;
             actions.refresh();
-          });
-          fragment.appendChild(button);
-        });
+          },
+          folder
+        ));
+      });
 
-      elements.folderList.innerHTML = "";
-      elements.folderList.appendChild(fragment);
+      elements.folderList.replaceChildren(fragment);
     }
 
     function getFilteredItems(){
       let items = state.items.slice();
 
       if (state.filter !== "all") {
-        if (state.filter === "favorites") {
-          items = items.filter(item => state.favorites[item.path]);
-        } else if (state.filter === "recent") {
-          items = items.filter(item => state.recentMap[item.path]);
-        } else {
-          items = items.filter(item => item.type === state.filter);
-        }
+        if (state.filter === "favorites") items = items.filter(item => state.favorites[item.path]);
+        else if (state.filter === "recent") items = items.filter(item => state.recentMap[item.path]);
+        else if (state.filter === "recently-added") items = items.slice().sort((a, b) => b.addedAt - a.addedAt).slice(0, 250);
+        else items = items.filter(item => item.type === state.filter);
       }
 
-      if (state.folderFilter !== "all") {
-        items = items.filter(item => item.folder === state.folderFilter);
-      }
+      if (state.folderFilter !== "all") items = items.filter(item => item.folder === state.folderFilter);
 
       const query = state.searchQuery.trim().toLowerCase();
       if (query) {
-        items = items.filter(item => {
-          const haystack = [
-            item.title,
-            item.name,
-            item.folder,
-            item.ext,
-            item.path,
-            state.recentMap[item.path] ? "recent" : "",
-            state.favorites[item.path] ? "favorite" : ""
-          ].join(" ").toLowerCase();
-          return haystack.includes(query);
-        });
+        items = items.filter(item => [item.title, item.name, item.folder, item.ext, item.path].join(" ").toLowerCase().includes(query));
       }
 
       items.sort((a, b) => {
@@ -105,56 +131,143 @@ window.MediaHorde = window.MediaHorde || {};
         if (state.sort === "recent") return (state.recentMap[b.path] || 0) - (state.recentMap[a.path] || 0) || a.title.localeCompare(b.title);
         return 0;
       });
-
       return items;
     }
 
-    function typeClass(type){
-      if (type === "audio") return "type-audio";
-      if (type === "video") return "type-video";
-      if (type === "html") return "type-html";
-      return "type-other";
+    function typeClass(type){ return `type-pill type-${type}`; }
+
+    function commonRowHandlers(row, item){
+      row.addEventListener("click", event => {
+        if (event.target.closest(".fav-btn")) return actions.toggleFavorite(item.path);
+        if (event.target.closest(".queue-btn")) return actions.queueItem(item.path);
+        if (event.target.closest(".row-checkbox")) return actions.toggleSelect(item.path);
+        state.selectedPath = item.path;
+        actions.refresh(false);
+      });
+      row.addEventListener("dblclick", () => {
+        state.selectedPath = item.path;
+        actions.openSelected();
+      });
     }
 
     function renderTable(filteredItems){
+      const limited = filteredItems.slice(0, config.maxVisibleRows);
       const fragment = document.createDocumentFragment();
 
-      filteredItems.forEach((item, index) => {
+      limited.forEach((item, index) => {
         const row = document.createElement("tr");
         if (state.selectedPath === item.path) row.classList.add("selected");
-        if (state.recentMap[item.path]) row.classList.add("recent-row");
+        if (state.multiSelected[item.path]) row.classList.add("multi-selected");
         row.dataset.path = item.path;
 
-        const nameLabel = item.title || item.name;
-        const recentTag = state.recentMap[item.path] ? '<span class="item-flag">RECENT</span>' : "";
-        row.innerHTML = `
-          <td><button class="fav-btn ${state.favorites[item.path] ? "on" : ""}" type="button" aria-label="Toggle favorite">${state.favorites[item.path] ? "★" : "☆"}</button></td>
-          <td>${index + 1}</td>
-          <td title="${item.name}"><div class="item-main">${nameLabel} ${recentTag}</div><div class="item-sub">${item.path}</div></td>
-          <td><span class="type-pill ${typeClass(item.type)}">${item.type}</span></td>
-          <td title="${item.folder}">${item.folder}</td>
-          <td>${item.sizeText || ""}</td>
-        `;
+        const selectionTd = document.createElement("td");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "row-checkbox";
+        checkbox.checked = Boolean(state.multiSelected[item.path]);
+        selectionTd.appendChild(checkbox);
 
-        row.addEventListener("click", event => {
-          if (event.target.closest(".fav-btn")) {
-            actions.toggleFavorite(item.path);
-            return;
-          }
-          state.selectedPath = item.path;
-          actions.refresh(false);
-        });
+        const favTd = document.createElement("td");
+        const favBtn = document.createElement("button");
+        favBtn.className = `fav-btn ${state.favorites[item.path] ? "on" : ""}`;
+        favBtn.type = "button";
+        favBtn.textContent = state.favorites[item.path] ? "★" : "☆";
+        favTd.appendChild(favBtn);
 
-        row.addEventListener("dblclick", () => {
-          state.selectedPath = item.path;
-          actions.openSelected();
-        });
+        const queueTd = document.createElement("td");
+        const queueBtn = document.createElement("button");
+        queueBtn.className = "queue-btn";
+        queueBtn.type = "button";
+        queueBtn.textContent = "+Q";
+        queueTd.appendChild(queueBtn);
 
+        const nameTd = textCell(item.title || item.name);
+        nameTd.title = item.path;
+
+        row.append(
+          selectionTd,
+          favTd,
+          queueTd,
+          textCell(String(index + 1), "col-index"),
+          nameTd,
+          textCell(item.type),
+          textCell(item.folder),
+          textCell(item.sizeText || "")
+        );
+        commonRowHandlers(row, item);
         fragment.appendChild(row);
       });
 
-      elements.playlistBody.innerHTML = "";
-      elements.playlistBody.appendChild(fragment);
+      elements.playlistBody.replaceChildren(fragment);
+      elements.listContainer.classList.toggle("hidden", state.viewMode !== "list");
+      elements.gridContainer.classList.toggle("hidden", state.viewMode !== "grid");
+      elements.playlistTableWrap.classList.toggle("hidden", state.viewMode !== "table");
+      if (state.viewMode === "list") renderList(limited);
+      if (state.viewMode === "grid") renderGrid(limited);
+
+      elements.renderNotice.textContent = filteredItems.length > config.maxVisibleRows
+        ? `Rendering first ${config.maxVisibleRows.toLocaleString()} of ${filteredItems.length.toLocaleString()} items for performance.`
+        : "";
+    }
+
+    function renderList(items){
+      const fragment = document.createDocumentFragment();
+      items.forEach(item => {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = `list-row ${state.selectedPath === item.path ? "selected" : ""}`;
+        row.textContent = `${item.title || item.name} — ${item.folder}`;
+        row.addEventListener("click", () => {
+          state.selectedPath = item.path;
+          actions.refresh(false);
+        });
+        fragment.appendChild(row);
+      });
+      elements.listContainer.replaceChildren(fragment);
+    }
+
+    function renderGrid(items){
+      const fragment = document.createDocumentFragment();
+      items.forEach(item => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = `grid-card ${state.selectedPath === item.path ? "selected" : ""}`;
+        const title = document.createElement("strong");
+        title.textContent = item.title || item.name;
+        const meta = document.createElement("span");
+        meta.textContent = `${item.type} • ${item.folder}`;
+        card.append(title, meta);
+        card.addEventListener("click", () => {
+          state.selectedPath = item.path;
+          actions.refresh(false);
+        });
+        fragment.appendChild(card);
+      });
+      elements.gridContainer.replaceChildren(fragment);
+    }
+
+    function renderQueue(){
+      const fragment = document.createDocumentFragment();
+      state.queue.forEach((entry, i) => {
+        const li = document.createElement("li");
+        li.textContent = `${i + 1}. ${entry.title || entry.name}`;
+        fragment.appendChild(li);
+      });
+      elements.queueList.replaceChildren(fragment);
+      elements.queueCount.textContent = String(state.queue.length);
+    }
+
+    function renderDiagnostics(){
+      const d = state.playlistDiagnostics;
+      elements.diagSummary.textContent = `Errors: ${d.errors.length} • Warnings: ${d.warnings.length} • Duplicates: ${d.duplicateEntries.length}`;
+      const lines = [...d.errors, ...d.warnings].slice(0, 100);
+      const fragment = document.createDocumentFragment();
+      lines.forEach(line => {
+        const li = document.createElement("li");
+        li.textContent = line;
+        fragment.appendChild(li);
+      });
+      elements.diagList.replaceChildren(fragment);
     }
 
     function renderStats(filteredItems){
@@ -163,90 +276,55 @@ window.MediaHorde = window.MediaHorde || {};
       const htmlCount = filteredItems.filter(item => item.type === "html").length;
       const favoriteCount = filteredItems.filter(item => state.favorites[item.path]).length;
       const totalSize = filteredItems.reduce((sum, item) => sum + (Number.isFinite(item.sizeBytes) ? item.sizeBytes : 0), 0);
-      const globalFavorites = state.items.filter(item => state.favorites[item.path]).length;
-      const recentCount = state.items.filter(item => state.recentMap[item.path]).length;
-
       elements.statVisible.textContent = String(filteredItems.length);
       elements.statAudio.textContent = String(audioCount);
       elements.statVideo.textContent = String(videoCount);
       elements.statHtml.textContent = String(htmlCount);
       elements.statFavorites.textContent = String(favoriteCount);
       elements.statSize.textContent = utils.humanFileSize(totalSize) || "Unknown";
-
-      const folderLabel = state.folderFilter === "all" ? "all folders" : state.folderFilter;
-      elements.libraryBlurb.textContent =
-        `${filteredItems.length} visible item(s) from ${folderLabel}. ` +
-        `Playlist holds ${state.items.length} total entries, ${globalFavorites} favorite(s), and ${recentCount} recent item(s). ` +
-        `Visible size is ${utils.humanFileSize(totalSize) || "unknown unless playlist entries include size metadata"}.`;
+      elements.libraryBlurb.textContent = `${filteredItems.length} visible item(s). Queue has ${state.queue.length} entries.`;
     }
 
     function syncButtons(){
-      document.querySelectorAll(".filter-btn").forEach(button => {
-        button.classList.toggle("active", button.dataset.filter === state.filter);
-      });
+      document.querySelectorAll(".filter-btn").forEach(button => button.classList.toggle("active", button.dataset.filter === state.filter));
+      document.querySelectorAll(".view-btn").forEach(button => button.classList.toggle("active", button.dataset.view === state.viewMode));
+      elements.repeatModeBtn.textContent = `Repeat: ${state.repeatMode}`;
+      elements.multiCount.textContent = String(Object.keys(state.multiSelected).length);
     }
 
     function ensureSelection(filteredItems){
-      if (!filteredItems.length) {
-        state.selectedPath = "";
-        return null;
-      }
-
-      const match = filteredItems.find(item => item.path === state.selectedPath);
-      if (match) return match;
-
-      state.selectedPath = filteredItems[0].path;
-      return filteredItems[0];
+      if (!filteredItems.length) return null;
+      return filteredItems.find(item => item.path === state.selectedPath) || filteredItems[0];
     }
 
     function refresh(updateFolders){
-      const shouldRenderFolders = updateFolders !== false;
       const filteredItems = getFilteredItems();
       const selectedItem = ensureSelection(filteredItems);
-
-      if (shouldRenderFolders) renderFolders();
+      if (selectedItem) state.selectedPath = selectedItem.path;
+      if (updateFolders !== false) renderFolders();
       renderTable(filteredItems);
       renderStats(filteredItems);
+      renderQueue();
+      renderDiagnostics();
       syncButtons();
-
-      if (!selectedItem) {
-        setTrackInfo(null, filteredItems.length ? "" : "No items match the current filters.");
-      } else if (state.player.getCurrentItem()?.path !== selectedItem.path) {
-        setTrackInfo(selectedItem, "Selected");
-      }
-
-      setStatus(
-        filteredItems.length
-          ? `Showing ${filteredItems.length} item(s).`
-          : "No visible items. Your filters murdered the list.",
-        "Shortcuts: / focus search • Esc clear search • Space play/pause • Enter open • ↑/↓ move selection"
-      );
-
+      if (!selectedItem) setTrackInfo(null, filteredItems.length ? "" : "No items match current filters.");
+      else if (state.player.getCurrentItem()?.path !== selectedItem.path) setTrackInfo(selectedItem, "Selected");
+      setStatus(filteredItems.length ? `Showing ${filteredItems.length} item(s).` : "No visible items.", "Shortcuts: / search • Enter open");
       return { filteredItems, selectedItem };
     }
 
     function moveSelection(direction){
       const filteredItems = getFilteredItems();
       if (!filteredItems.length) return null;
-
       let index = filteredItems.findIndex(item => item.path === state.selectedPath);
-      if (index === -1) index = 0;
-      index = Math.max(0, Math.min(filteredItems.length - 1, index + direction));
+      index = Math.max(0, Math.min(filteredItems.length - 1, (index === -1 ? 0 : index) + direction));
       state.selectedPath = filteredItems[index].path;
       refresh(false);
       return filteredItems[index];
     }
 
-    return {
-      setStatus,
-      setTrackInfo,
-      getFilteredItems,
-      refresh,
-      moveSelection
-    };
+    return { setStatus, setTrackInfo, getFilteredItems, refresh, moveSelection };
   }
 
-  ns.ui = {
-    createUi
-  };
+  ns.ui = { createUi };
 })(window.MediaHorde);
