@@ -13,16 +13,14 @@
         <div class="brand-logo" aria-hidden="true"></div>
         <div>
           <h1>MEDIA HORDE AMP</h1>
-          <p>Offline audio, video, and web launcher for giant messy libraries, because apparently humans like owning 40,000 files.</p>
+          <p>Offline-first static media launcher for huge local collections.</p>
         </div>
       </div>
       <div class="topbar-actions">
         <button id="reloadPlaylistBtn" class="ghost-btn" type="button">Reload playlist</button>
+        <button id="diagnosticsBtn" class="ghost-btn" type="button">Diagnostics</button>
         <button id="downloadSelectedBtn" class="ghost-btn" type="button">Download selected</button>
-        <label class="ghost-btn file-btn">
-          Load playlist.txt
-          <input id="playlistFileInput" type="file" accept=".txt,text/plain" hidden>
-        </label>
+        <label class="ghost-btn file-btn">Load playlist.txt<input id="playlistFileInput" type="file" accept=".txt,text/plain" hidden></label>
       </div>
     </header>
 
@@ -30,14 +28,9 @@
       <div class="toolbar-search">
         <input id="searchInput" type="search" placeholder="Search name, folder, extension, or title">
         <select id="sortSelect">
-          <option value="playlist">Playlist order</option>
-          <option value="name">Name A-Z</option>
-          <option value="folder">Folder</option>
-          <option value="type">Type</option>
-          <option value="recent">Recently opened</option>
+          <option value="playlist">Playlist order</option><option value="name">Name A-Z</option><option value="folder">Folder</option><option value="type">Type</option><option value="recent">Recently opened</option>
         </select>
       </div>
-
       <div class="toolbar-filters">
         <button class="filter-btn active" data-filter="all" type="button">All</button>
         <button class="filter-btn" data-filter="audio" type="button">Audio</button>
@@ -45,9 +38,15 @@
         <button class="filter-btn" data-filter="html" type="button">Web</button>
         <button class="filter-btn" data-filter="favorites" type="button">Favorites</button>
         <button class="filter-btn" data-filter="recent" type="button">Recent</button>
+        <button class="filter-btn" data-filter="recently-added" type="button">Recently added</button>
       </div>
-
+      <div class="toolbar-filters">
+        <button class="view-btn active" data-view="table" type="button">Table</button>
+        <button class="view-btn" data-view="list" type="button">List</button>
+        <button class="view-btn" data-view="grid" type="button">Grid</button>
+      </div>
       <div class="toolbar-actions">
+        <button id="repeatModeBtn" class="ghost-btn" type="button">Repeat: off</button>
         <button id="clearSearchBtn" class="ghost-btn" type="button">Clear search</button>
         <button id="clearRecentsBtn" class="ghost-btn" type="button">Clear recents</button>
         <button id="clearFavoritesBtn" class="ghost-btn" type="button">Clear favorites</button>
@@ -58,146 +57,47 @@
     </section>
 
     <main class="main-layout">
-      <aside class="panel sidebar">
-        <div class="panel-heading">
-          <h2>Folders</h2>
-        </div>
-        <div id="folderList" class="folder-list"></div>
-      </aside>
-
+      <aside class="panel sidebar"><div class="panel-heading"><h2>Folders (right-click to pin)</h2></div><div id="folderList" class="folder-list"></div></aside>
       <section class="panel player-panel">
-        <div class="panel-heading">
-          <h2>Preview & playback</h2>
-        </div>
-
-        <div class="now-playing">
-          <div id="trackName" class="track-name">No item selected</div>
-          <div id="trackMeta" class="track-meta">Load playlist.txt from this folder, or host the repo on GitHub Pages and let the app fetch it automatically.</div>
-        </div>
-
+        <div class="panel-heading"><h2>Preview & playback</h2></div>
+        <div class="now-playing"><div id="trackName" class="track-name">No item selected</div><div id="trackMeta" class="track-meta">Load playlist.txt to begin.</div></div>
         <div id="screen" class="screen mode-empty">
-          <canvas id="visualizer" class="visualizer" width="960" height="420"></canvas>
-          <video id="videoEl" class="media-el video-el" preload="metadata" playsinline></video>
-          <img id="artEl" class="media-el art-el hidden" alt="Album art">
-          <div id="artFallback" class="art-fallback hidden">
-            <div id="artFallbackBadge" class="screen-badge hidden">RECENT</div>
-            <div class="art-fallback-type" id="artFallbackType">AUDIO</div>
-            <div class="art-fallback-title" id="artFallbackTitle">Nothing loaded</div>
-            <div class="art-fallback-folder" id="artFallbackFolder">playlist.txt goes beside index.html</div>
-          </div>
-          <div id="emptyOverlay" class="empty-overlay">
-            <div>
-              <h3>Library ready</h3>
-              <p>This repo expects <code>playlist.txt</code> in the same folder as <code>index.html</code>. If your browser blocks local file fetching, use the “Load playlist.txt” button or run a tiny local server.</p>
-            </div>
-          </div>
+          <canvas id="visualizer" class="visualizer" width="960" height="420"></canvas><video id="videoEl" class="media-el video-el" preload="metadata" playsinline></video><img id="artEl" class="media-el art-el hidden" alt="Album art">
+          <div id="artFallback" class="art-fallback hidden"><div id="artFallbackBadge" class="screen-badge hidden">RECENT</div><div class="art-fallback-type" id="artFallbackType">AUDIO</div><div class="art-fallback-title" id="artFallbackTitle">Nothing loaded</div><div class="art-fallback-folder" id="artFallbackFolder">playlist.txt goes beside index.html</div></div>
+          <div id="emptyOverlay" class="empty-overlay"><div><h3>Drop playlist.txt anywhere</h3><p>Drag and drop a <code>playlist.txt</code> file onto this page to load it quickly.</p></div></div>
         </div>
-
         <div id="meters" class="meters"></div>
-
         <div class="transport">
-          <div class="transport-buttons">
-            <button id="prevBtn" class="transport-btn" type="button">⏮</button>
-            <button id="playPauseBtn" class="transport-btn" type="button">▶</button>
-            <button id="stopBtn" class="transport-btn" type="button">■</button>
-            <button id="nextBtn" class="transport-btn" type="button">⏭</button>
-          </div>
-
-          <div class="transport-center">
-            <input id="seekBar" type="range" min="0" max="1000" value="0">
-            <div class="time-row">
-              <span id="currentTime">0:00</span>
-              <span id="durationTime">0:00</span>
-            </div>
-          </div>
-
-          <div class="transport-volume">
-            <label for="volumeBar">Volume</label>
-            <input id="volumeBar" type="range" min="0" max="100" value="85">
-          </div>
+          <div class="transport-buttons"><button id="prevBtn" class="transport-btn" type="button">⏮</button><button id="playPauseBtn" class="transport-btn" type="button">▶</button><button id="stopBtn" class="transport-btn" type="button">■</button><button id="nextBtn" class="transport-btn" type="button">⏭</button></div>
+          <div class="transport-center"><input id="seekBar" type="range" min="0" max="1000" value="0"><div class="time-row"><span id="currentTime">0:00</span><span id="durationTime">0:00</span></div></div>
+          <div class="transport-volume"><label for="volumeBar">Volume</label><input id="volumeBar" type="range" min="0" max="100" value="85"></div>
         </div>
-
         <audio id="audioEl" preload="metadata"></audio>
       </section>
 
       <section class="panel info-panel">
-        <div class="panel-heading">
-          <h2>Collection overview</h2>
-        </div>
-
+        <div class="panel-heading"><h2>Collection overview</h2></div>
         <div class="stats-grid">
-          <article class="stat-card">
-            <strong id="statVisible">0</strong>
-            <span>Visible items</span>
-          </article>
-          <article class="stat-card">
-            <strong id="statAudio">0</strong>
-            <span>Audio</span>
-          </article>
-          <article class="stat-card">
-            <strong id="statVideo">0</strong>
-            <span>Video</span>
-          </article>
-          <article class="stat-card">
-            <strong id="statHtml">0</strong>
-            <span>Web</span>
-          </article>
-          <article class="stat-card">
-            <strong id="statFavorites">0</strong>
-            <span>Favorites</span>
-          </article>
-          <article class="stat-card">
-            <strong id="statSize">0 B</strong>
-            <span>Visible size</span>
-          </article>
+          <article class="stat-card"><strong id="statVisible">0</strong><span>Visible</span></article><article class="stat-card"><strong id="statAudio">0</strong><span>Audio</span></article><article class="stat-card"><strong id="statVideo">0</strong><span>Video</span></article><article class="stat-card"><strong id="statHtml">0</strong><span>Web</span></article><article class="stat-card"><strong id="statFavorites">0</strong><span>Favorites</span></article><article class="stat-card"><strong id="statSize">0 B</strong><span>Visible size</span></article>
         </div>
-
-        <div class="info-copy">
-          <p id="libraryBlurb">Waiting for playlist data.</p>
-          <div class="inline-help">
-            <h3>Playlist format</h3>
-            <pre>music/song.mp3
-videos/demo.mp4 | title=Cool Demo | size=42 MB
-games/game/index.html | title=My Game | type=html
-music/song.mp3 | art=covers/song.jpg</pre>
-          </div>
-          <div class="inline-help">
-            <h3>Quick start</h3>
-            <pre>1. Put index.html and playlist.txt together
-2. Keep media paths relative to that folder
-3. Run tools/build_playlist.py to rebuild the list
-4. Upload the repo to GitHub Pages or open it locally</pre>
-          </div>
+        <div class="info-copy"><p id="libraryBlurb">Waiting for playlist data.</p>
+          <div class="inline-help"><h3>Up next queue (<span id="queueCount">0</span>)</h3><ul id="queueList" class="queue-list"></ul></div>
+          <div class="inline-help"><h3>Bulk actions (<span id="multiCount">0</span> selected)</h3><button id="bulkQueueBtn" class="ghost-btn" type="button">Queue selected</button> <button id="bulkFavoriteBtn" class="ghost-btn" type="button">Favorite selected</button> <button id="clearSelectionBtn" class="ghost-btn" type="button">Clear selection</button></div>
         </div>
       </section>
     </main>
 
     <section class="panel playlist-panel">
-      <div class="panel-heading">
-        <h2>Media list</h2>
-      </div>
-      <div class="playlist-table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th class="col-fav">★</th>
-              <th class="col-index">#</th>
-              <th>Name</th>
-              <th class="col-type">Type</th>
-              <th class="col-folder">Folder</th>
-              <th class="col-size">Size</th>
-            </tr>
-          </thead>
-          <tbody id="playlistBody"></tbody>
-        </table>
-      </div>
+      <div class="panel-heading"><h2>Media list</h2><small id="renderNotice"></small></div>
+      <div id="playlistTableWrap" class="playlist-table-wrap"><table><thead><tr><th>✓</th><th class="col-fav">★</th><th>Q</th><th class="col-index">#</th><th>Name</th><th class="col-type">Type</th><th class="col-folder">Folder</th><th class="col-size">Size</th></tr></thead><tbody id="playlistBody"></tbody></table></div>
+      <div id="listContainer" class="list-container hidden"></div>
+      <div id="gridContainer" class="grid-container hidden"></div>
     </section>
 
-    <footer class="statusbar">
-      <div id="statusLeft">Waiting for playlist.txt.</div>
-      <div id="statusRight">Shortcuts: / focus search • Esc clear search • Space play/pause • Enter open • ↑/↓ move selection</div>
-    </footer>
+    <footer class="statusbar"><div id="statusLeft">Waiting for playlist.txt.</div><div id="statusRight">Shortcuts: / search • Enter open • ↑/↓ select</div></footer>
   </div>
+
+  <dialog id="diagnosticsModal" class="diag-modal"><h3>Playlist diagnostics</h3><p id="diagSummary">No diagnostics yet.</p><ul id="diagList"></ul><button id="closeDiagnosticsBtn" class="ghost-btn" type="button">Close</button></dialog>
 
   <script src="assets/js/config.js"></script>
   <script src="assets/js/utils.js"></script>

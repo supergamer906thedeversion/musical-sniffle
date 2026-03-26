@@ -129,6 +129,14 @@ window.MediaHorde = window.MediaHorde || {};
     return text || (fallback || "");
   }
 
+  function debounce(fn, waitMs){
+    let timeoutId = 0;
+    return function debounced(...args){
+      clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => fn.apply(this, args), waitMs);
+    };
+  }
+
   ns.utils = {
     normalizePath,
     encodeUrlPath,
@@ -144,6 +152,7 @@ window.MediaHorde = window.MediaHorde || {};
     storageSave,
     createElement,
     shuffleCopy,
-    safeText
+    safeText,
+    debounce
   };
 })(window.MediaHorde);
